@@ -1,0 +1,71 @@
+
+from imdb import IMDb
+from sklearn.externals import joblib
+from sklearn.feature_extraction.text import TfidfVectorizer
+import pandas as pd
+
+imdb = IMDb()
+
+top250 = imdb.get_top250_movies()
+
+
+all_movies = {}
+count = 0
+for movie in top250:
+    imdb.update(movie, info=['plot'])
+    print("Coletando o filme %i. %s" % (count, movie['title']))
+    all_movies[count] = movie
+    count += 1
+
+ids = []
+titles = []
+synopsis =[]
+
+count = 0
+for movie in top250:
+  imdb.update(movie, info=['plot'])
+  print("Coletando o filme %i. %s" % (count, movie['title']))
+  ids.append(count)
+  titles.append(movie['title'])
+
+  text = ""
+
+  if 'synopsis' in movie.keys():
+    text += movie['synopsis'][0] + " "
+
+
+  if 'plot' in movie.keys():
+    for plot in movie['plot']:
+      text += plot + " "
+
+  synopsis.append(text)
+
+  count += 1
+
+vector = TfidfVectorizer(stop_words='english',max_features=1000,ngram_range=(1, 3))
+
+matrix = vector.fit_transform(synopsis)
+
+from sklearn.cluster import KMeans
+
+num_clusters = 5
+
+km = KMeans(n_clusters=num_clusters)
+
+km.fit(matrix)
+
+clusters = km.labels_.tolist()
+
+movie_info = {'title': titles, 'synopsis': synopsis, 'cluster': clusters, 'id':ids}
+
+frame = pd.DataFrame(movie_info,index=[clusters],columns=['title','cluster','id'])
+
+model_persist = {
+    'model': km,
+    'vector': vector,
+    'all_movies': all_movies,
+    'frame': frame,
+}
+
+joblib.dump(model_persist, 'model.pkl')
+
